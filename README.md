@@ -96,3 +96,5 @@ Launch the application:
 
 
 💡 Important Tip: When you open the application for the first time, don't forget to click the ⚙️ Install FFmpeg button on the left panel to ensure all features (like 1080p video and MP3 Metadata) work flawlessly!
+
+
