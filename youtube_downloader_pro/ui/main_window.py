@@ -423,7 +423,7 @@ class MainWindow(QMainWindow):
                 self.manager.retry(key, download_again=action == "again")
             self.manager.start()
         elif action == "copy_url":
-            QApplication.clipboard().setText(item.url)
+            self._copy_url(item.url)
         elif action == "details":
             self.banner.show_message(
                 item.message or item.status.value,
@@ -519,7 +519,7 @@ class MainWindow(QMainWindow):
                 self._navigate(1)
                 self._start()
             elif action == "copy_url":
-                QApplication.clipboard().setText(row["source_url"])
+                self._copy_url(row["source_url"])
             elif row["output_file"]:
                 path = Path(row["output_file"])
                 self._open(path.parent if action == "open_folder" else path)
@@ -644,6 +644,10 @@ class MainWindow(QMainWindow):
         if url:
             self.clip_url = url
             self.clip_banner.show()
+
+    def _copy_url(self, url: str) -> None:
+        self.clipboard.ignore_copy(url)
+        QApplication.clipboard().setText(url)
 
     def _analyze_clipboard(self) -> None:
         self.clip_banner.hide()

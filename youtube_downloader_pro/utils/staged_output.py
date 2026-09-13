@@ -1,6 +1,7 @@
 import errno
 import os
 import threading
+from collections.abc import Callable
 from pathlib import Path
 
 from youtube_downloader_pro.core.errors import CancelledError, DownloadError
@@ -8,7 +9,12 @@ from youtube_downloader_pro.utils.paths import contained_file
 
 
 def publish_files(
-    staging: Path, destination: Path, media: Path, cancel: threading.Event | None = None
+    staging: Path,
+    destination: Path,
+    media: Path,
+    cancel: threading.Event | None = None,
+    *,
+    on_published: Callable[[Path], None] | None = None,
 ) -> Path:
     """Publish a group without overwrites. Roll back only files created by this call."""
     media = contained_file(staging, media)
@@ -62,6 +68,10 @@ def publish_files(
                     result = target
             if result is None:
                 raise DownloadError("output", "The final output was not published.")
+            if cancel and cancel.is_set():
+                raise CancelledError()
+            if on_published:
+                on_published(result)
             return result
         except BaseException as exc:
             for path in reversed(created):

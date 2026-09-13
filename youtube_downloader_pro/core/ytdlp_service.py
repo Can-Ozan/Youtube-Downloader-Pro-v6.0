@@ -1,10 +1,12 @@
 """yt-dlp adapter. This module has no Qt dependency and runs inside isolated workers."""
 
 import os
+import re
 import time
 from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
+from urllib.parse import urljoin
 
 import yt_dlp
 from yt_dlp.postprocessor.common import PostProcessor
@@ -20,9 +22,9 @@ from youtube_downloader_pro.utils.paths import (
     ensure_output_dir,
     sanitize_filename,
 )
-from youtube_downloader_pro.utils.validators import validate_url
+from youtube_downloader_pro.utils.validators import ValidationError, validate_url
 
-EventSink = Callable[[dict], None]
+EventSink = Callable[[dict], object]
 PAGE_SIZE = 100
 
 
@@ -70,25 +72,35 @@ def base_options(emit: EventSink) -> dict:
     }
 
 
+def _media_url(info: dict, fallback_url: str, playlist_entry: bool) -> str:
+    fallback_url = validate_url(fallback_url)
+    extractor = str(info.get("ie_key") or info.get("extractor_key") or "").lower()
+    if playlist_entry and extractor == "youtube":
+        video_id = str(info.get("id") or info.get("url") or "")
+        if re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+            return f"https://www.youtube.com/watch?v={video_id}"
+    candidates = [info.get("webpage_url"), info.get("url"), info.get("original_url")]
+    if playlist_entry:
+        candidates.extend(f.get("url") for f in reversed(info.get("formats") or []))
+    for candidate in candidates:
+        if not isinstance(candidate, str) or not candidate:
+            continue
+        if candidate.startswith(("/", "./", "../", "?")):
+            candidate = urljoin(fallback_url, candidate)
+        try:
+            url = validate_url(candidate)
+        except ValidationError:
+            continue
+        if not playlist_entry or url != fallback_url:
+            return url
+    if playlist_entry:
+        # Never enqueue the parent playlist in place of an unresolved occurrence.
+        raise DownloadError("unavailable", "This media is unavailable or has been removed.")
+    return fallback_url
+
+
 def compact_media(info: dict, fallback_url: str, index: int | None = None) -> dict:
-    url = info.get("webpage_url") or info.get("url") or fallback_url
-    if index is not None and url == fallback_url:
-        # Generic HTML playlists can share one webpage while each entry has a direct source.
-        direct = info.get("url")
-        if not direct:
-            candidates = info.get("formats") or []
-            direct = next(
-                (
-                    f.get("url")
-                    for f in reversed(candidates)
-                    if str(f.get("url", "")).startswith(("http://", "https://"))
-                ),
-                None,
-            )
-        if direct:
-            url = direct
-    if not str(url).startswith(("http://", "https://")):
-        url = fallback_url
+    url = _media_url(info, fallback_url, index is not None)
     formats = []
     for fmt in info.get("formats") or []:
         if fmt.get("has_drm") or fmt.get("vcodec") == "none" and fmt.get("acodec") == "none":
@@ -142,9 +154,14 @@ def analyze(url: str, emit: EventSink, start: int = 1) -> dict:
     if "entries" not in info:
         return compact_media(info, url) | {"is_playlist": False}
     entries = []
+    examined = 0
     for index, entry in enumerate(info["entries"], start):
+        examined += 1
         if entry:
-            entries.append(compact_media(entry, url, index))
+            try:
+                entries.append(compact_media(entry, url, index))
+            except DownloadError as exc:
+                emit({"type": "log", "message": f"Playlist entry {index}: {exc}"})
         if index >= start + PAGE_SIZE - 1:
             break
     count = info.get("playlist_count") or info.get("n_entries")
@@ -155,7 +172,7 @@ def analyze(url: str, emit: EventSink, start: int = 1) -> dict:
         "entries": entries,
         "count": count,
         "start": start,
-        "has_more": (start + PAGE_SIZE <= count) if count else len(entries) == PAGE_SIZE,
+        "has_more": (start + PAGE_SIZE <= count) if count else examined == PAGE_SIZE,
     }
 
 
@@ -321,6 +338,12 @@ def download(payload: dict, emit: EventSink) -> dict:
             Path(payload["archive_directory"])
         ).contains_id(ydl._make_archive_id(info)):
             raise DownloadError("archive", "Previously downloaded. Choose Download again anyway.")
+        if (
+            payload.get("archive_directory")
+            and emit({"type": "archive_claim", "archive_id": ydl._make_archive_id(info)})
+            is not True
+        ):
+            raise DownloadError("archive", "This media is already downloading. Retry later.")
         info["playlist_index"] = options.playlist_index
         info["playlist"] = options.playlist_title
         estimate = info.get("filesize") or info.get("filesize_approx")

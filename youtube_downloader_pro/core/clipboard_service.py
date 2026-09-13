@@ -15,3 +15,10 @@ class ClipboardService:
             return None
         self.seen.append(url)
         return url
+
+    def ignore_copy(self, text: str) -> None:
+        """Remember application copies before Qt emits clipboard change notifications."""
+        if is_clipboard_media_url(text):
+            url = validate_url(text)
+            if url not in self.seen:
+                self.seen.append(url)

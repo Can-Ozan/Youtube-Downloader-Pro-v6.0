@@ -225,6 +225,7 @@
   "Use 1–5 downloads and 1–8 fragments per download.": "1–5 eşzamanlı indirme ve indirme başına 1–8 parça kullanın.",
   "Invalid bitrate or speed limit.": "Bit hızı veya hız sınırı geçersiz.",
   "Previously downloaded. Choose Download again anyway.": "Daha önce indirildi. Yine de yeniden indir seçeneğini kullanın.",
+  "This media is already downloading. Retry later.": "Bu medya zaten indiriliyor. Daha sonra yeniden deneyin.",
   "Media analysis timed out. Try again.": "Medya analizi zaman aşımına uğradı. Yeniden deneyin.",
   "The media worker exited unexpectedly.": "Medya işlemi beklenmedik şekilde sonlandı.",
   "The media worker exited without a result.": "Medya işlemi sonuç üretmeden sonlandı.",

@@ -225,6 +225,7 @@
   "Use 1–5 downloads and 1–8 fragments per download.": "Use 1–5 downloads and 1–8 fragments per download.",
   "Invalid bitrate or speed limit.": "Invalid bitrate or speed limit.",
   "Previously downloaded. Choose Download again anyway.": "Previously downloaded. Choose Download again anyway.",
+  "This media is already downloading. Retry later.": "This media is already downloading. Retry later.",
   "Media analysis timed out. Try again.": "Media analysis timed out. Try again.",
   "The media worker exited unexpectedly.": "The media worker exited unexpectedly.",
   "The media worker exited without a result.": "The media worker exited without a result.",

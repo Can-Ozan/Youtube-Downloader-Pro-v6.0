@@ -53,6 +53,48 @@ def test_real_analysis_and_isolated_download(local_media, settings, tmp_path):
     assert any(event["type"] == "progress" for event in events)
 
 
+@pytest.mark.parametrize("allowed", [True, False])
+def test_spawned_worker_requires_archive_claim_before_download(
+    local_media, settings, tmp_path, allowed
+):
+    from youtube_downloader_pro.core.errors import DownloadError
+
+    directory, host = local_media
+    stage = tmp_path / "claimed-stage"
+    stage.mkdir()
+    options = DownloadOptions(
+        replace(settings, archive_enabled=True, embed_metadata=False, preserve_chapters=False),
+        mode="custom",
+        custom_format="best",
+    )
+    events = []
+
+    def receive(event):
+        events.append(event)
+        if event["type"] == "archive_claim":
+            return allowed
+        return None
+
+    payload = {
+        "url": host + "/tone.wav",
+        "staging": str(stage),
+        "ffmpeg": "",
+        "options": serialize_options(options),
+        "archive_directory": str(tmp_path / "archive"),
+    }
+    if allowed:
+        result = run_worker("download", payload, threading.Event(), receive, 30)
+        assert Path(result["output_file"]).read_bytes() == (directory / "tone.wav").read_bytes()
+        kinds = [event["type"] for event in events]
+        assert kinds.index("archive_claim") < kinds.index("progress")
+    else:
+        with pytest.raises(DownloadError, match="already downloading"):
+            run_worker("download", payload, threading.Event(), receive, 30)
+        assert list(stage.iterdir()) == []
+    claims = [event for event in events if event["type"] == "archive_claim"]
+    assert len(claims) == 1 and claims[0]["archive_id"]
+
+
 @pytest.mark.parametrize("codec", ["mp3", "m4a", "opus", "flac", "wav"])
 def test_real_audio_conversion(codec, local_media, ffmpeg, settings, tmp_path):
     _, host = local_media

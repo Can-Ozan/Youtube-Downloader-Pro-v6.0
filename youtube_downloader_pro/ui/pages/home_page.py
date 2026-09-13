@@ -343,6 +343,11 @@ class HomePage(Page):
         previous = self.settings
         self.settings = settings
         self.destination.setText(tr("Save to {folder}", folder=settings.download_folder))
+        if previous.default_quality != settings.default_quality:
+            quality = settings.default_quality
+            self.quality.setCurrentText(
+                quality if self.quality.findText(quality) >= 0 else "Best Available"
+            )
         # A language/theme save must preserve choices made for the analyzed media.
         for key, control in (
             ("default_format", self.container),

@@ -106,8 +106,9 @@ class ThumbnailLoader(QObject):
             request.setTransferTimeout(10_000)
             request.setAttribute(
                 QNetworkRequest.Attribute.RedirectPolicyAttribute,
-                QNetworkRequest.RedirectPolicy.ManualRedirectPolicy,
+                QNetworkRequest.RedirectPolicy.NoLessSafeRedirectPolicy,
             )
+            request.setMaximumRedirectsAllowed(5)
             reply = self.network.get(request)
             self.active += 1
             reply.readyRead.connect(

@@ -19,8 +19,12 @@ def worker_entry(operation: str, payload: dict, connection: Connection) -> None:
     # Imports stay in the child so UI startup and test doubles do not initialize extractors.
     from youtube_downloader_pro.core.ytdlp_service import analyze, download
 
-    def emit(event: dict) -> None:
+    def emit(event: dict):
         connection.send(event)
+        if event["type"] == "archive_claim":
+            # The queue owner reserves the extracted identity before any transfer starts.
+            return connection.recv()
+        return None
 
     try:
         if operation == "analyze":
@@ -69,13 +73,13 @@ def run_worker(
     operation: str,
     payload: dict,
     cancel: threading.Event,
-    emit: Callable[[dict], None],
+    emit: Callable[[dict], object],
     timeout: float | None = None,
 ) -> dict:
     if cancel.is_set():
         raise CancelledError()
     context = multiprocessing.get_context("spawn")
-    receive, send = context.Pipe(duplex=False)
+    receive, send = context.Pipe(duplex=True)
     process = context.Process(
         target=worker_entry, args=(operation, payload, send), name=f"media-{operation}"
     )
@@ -97,7 +101,9 @@ def run_worker(
                     return event["result"]
                 if event["type"] == "error":
                     raise DownloadError(event["code"], event["message"], event["retryable"])
-                emit(event)
+                response = emit(event)
+                if event["type"] == "archive_claim":
+                    receive.send(response)
             elif not process.is_alive():
                 raise DownloadError("engine", "The media worker exited without a result.")
     finally:

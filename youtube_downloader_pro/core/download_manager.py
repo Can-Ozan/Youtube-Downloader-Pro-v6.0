@@ -40,6 +40,7 @@ class DownloadManager:
         self._executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="download")
         self._lock = threading.RLock()
         self._archive_lock = threading.Lock()
+        self._archive_claims: dict[tuple[str, str], str] = {}
         self._items: dict[str, DownloadItem] = {}
         self._futures: dict[str, Future] = {}
         self._cancel: dict[str, threading.Event] = {}
@@ -131,8 +132,30 @@ class DownloadManager:
                 setattr(item, name, value)
             self._emit(item)
 
-    def _handle_worker_event(self, key: str, event: dict) -> None:
+    def _claim_archive(self, key: str, archive_id: str | None) -> bool:
+        with self._lock:
+            item = self._items[key]
+            if self._cancel[key].is_set():
+                raise CancelledError()
+            url = item.url
+        with self._archive_lock:
+            if self._archive.lookup(url) or self._archive.contains_id(archive_id):
+                raise DownloadError(
+                    "archive", "Previously downloaded. Choose Download again anyway."
+                )
+            identities = [("url", url)]
+            if archive_id:
+                identities.append(("id", archive_id))
+            if any(self._archive_claims.get(identity, key) != key for identity in identities):
+                raise DownloadError("archive", "This media is already downloading. Retry later.")
+            for identity in identities:
+                self._archive_claims[identity] = key
+        return True
+
+    def _handle_worker_event(self, key: str, event: dict):
         kind = event["type"]
+        if kind == "archive_claim":
+            return self._claim_archive(key, event.get("archive_id"))
         if kind == "log":
             log.info("Job %s: %s", key, event["message"])
         elif kind == "state":
@@ -169,12 +192,7 @@ class DownloadManager:
             if cancel.is_set():
                 raise CancelledError()
             if item.options.settings.archive_enabled and not item.options.download_again:
-                with self._archive_lock:
-                    previous = self._archive.lookup(item.url)
-                if previous:
-                    raise DownloadError(
-                        "archive", "Previously downloaded. Choose Download again anyway."
-                    )
+                self._claim_archive(key, None)
             destination = ensure_output_dir(item.options.settings.download_folder)
             # The parent owns staging cleanup, including after forced worker cancellation.
             with tempfile.TemporaryDirectory(prefix=".ydp-", dir=destination) as temporary:
@@ -212,18 +230,29 @@ class DownloadManager:
                             raise DownloadError("output", "The final output is missing or empty.")
                         if cancel.is_set():
                             raise CancelledError()
-                        output = publish_files(Path(temporary), destination, output, cancel)
-                        self._update(
-                            key,
-                            status=Status.COMPLETED,
-                            output_file=str(output),
-                            title=result.get("title") or item.title,
-                            progress=100,
-                            downloaded_bytes=output.stat().st_size,
-                            total_bytes=output.stat().st_size,
-                            speed=None,
-                            eta=None,
-                            message="Download completed",
+
+                        def complete(published: Path, result=result) -> None:
+                            size = published.stat().st_size
+                            # Cancellation and completion share one linearization point.
+                            # Until this succeeds the publisher still owns rollback of all files.
+                            with self._lock:
+                                if cancel.is_set():
+                                    raise CancelledError()
+                                self._update(
+                                    key,
+                                    status=Status.COMPLETED,
+                                    output_file=str(published),
+                                    title=result.get("title") or item.title,
+                                    progress=100,
+                                    downloaded_bytes=size,
+                                    total_bytes=size,
+                                    speed=None,
+                                    eta=None,
+                                    message="Download completed",
+                                )
+
+                        output = publish_files(
+                            Path(temporary), destination, output, cancel, on_published=complete
                         )
                         if item.options.settings.archive_enabled:
                             try:
@@ -262,6 +291,12 @@ class DownloadManager:
         finally:
             with self._lock:
                 final = replace(self._items[key])
+            with self._archive_lock:
+                self._archive_claims = {
+                    identity: owner
+                    for identity, owner in self._archive_claims.items()
+                    if owner != key
+                }
             if final.options.settings.history_enabled:
                 try:
                     self._history.record(final)

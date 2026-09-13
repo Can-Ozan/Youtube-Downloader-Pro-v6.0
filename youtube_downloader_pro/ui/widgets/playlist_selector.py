@@ -13,7 +13,7 @@ class PlaylistSelector(QDialog):
         super().__init__(parent)
         bind_text(self, "setWindowTitle", "Select playlist videos")
         self.resize(700, 580)
-        self.selected = {item["url"]: item for item in selected}
+        self.selected = {self._entry_key(item): item for item in selected}
         self.media = media
         layout = QVBoxLayout(self)
         layout.addWidget(label(media["title"], "section", True, translate=False))
@@ -41,14 +41,18 @@ class PlaylistSelector(QDialog):
         layout.addWidget(self.done_button)
         self.set_page(media)
 
+    @staticmethod
+    def _entry_key(entry: dict) -> tuple:
+        return entry.get("playlist_index"), entry["url"]
+
     def _remember(self) -> None:
         for i in range(self.list.count()):
             entry = self.list.item(i)
             media = entry.data(Qt.ItemDataRole.UserRole)
             if entry.checkState() == Qt.CheckState.Checked:
-                self.selected[media["url"]] = media
+                self.selected[self._entry_key(media)] = media
             else:
-                self.selected.pop(media["url"], None)
+                self.selected.pop(self._entry_key(media), None)
 
     def _select(self, checked: bool) -> None:
         for i in range(self.list.count()):
@@ -71,11 +75,15 @@ class PlaylistSelector(QDialog):
     def set_page(self, media: dict) -> None:
         self.media = media
         self.list.clear()
-        for entry in media["entries"]:
-            row = QListWidgetItem(f"{entry.get('playlist_index') or '•'}   {entry['title']}")
+        for index, entry in enumerate(media["entries"], media["start"]):
+            display_index = entry.get("playlist_index") or "•"
+            entry = dict(entry, playlist_index=entry.get("playlist_index") or index)
+            row = QListWidgetItem(f"{display_index}   {entry['title']}")
             row.setData(Qt.ItemDataRole.UserRole, entry)
             row.setCheckState(
-                Qt.CheckState.Checked if entry["url"] in self.selected else Qt.CheckState.Unchecked
+                Qt.CheckState.Checked
+                if self._entry_key(entry) in self.selected
+                else Qt.CheckState.Unchecked
             )
             self.list.addItem(row)
         self.info.setText(
