@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=75,<83"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "youtube-downloader-pro"
+dynamic = ["version"]
+description = "A desktop media download manager for media you are authorized to download"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "Yusuf Can Ozan / Can-Ozan"}]
+dependencies = [
+    "PySide6>=6.10,<7",
+    "yt-dlp>=2026.8.19,<2027",
+    "platformdirs>=4.3,<5",
+    "psutil>=6.1,<8",
+    "mutagen>=1.47,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<10", "ruff>=0.11,<1", "pyinstaller>=6.12,<7"]
+
+[project.gui-scripts]
+youtube-downloader-pro = "youtube_downloader_pro.main:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "youtube_downloader_pro.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["youtube_downloader_pro*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = ["integration: locally generated media and loopback HTTP only"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["PySide6.QtCore.QModelIndex"]
+
+[tool.setuptools.package-data]
+youtube_downloader_pro = ["i18n/*.json"]
