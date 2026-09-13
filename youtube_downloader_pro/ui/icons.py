@@ -38,6 +38,7 @@ PATHS = {
     ),
     "close": ('<path d="m6 6 12 12M6 18 18 6"/>'),
     "chevron": ('<path d="m8 5 7 7-7 7"/>'),
+    "chevron_down": ('<path d="m5 8 7 7 7-7"/>'),
 }
 
 
@@ -55,3 +56,17 @@ def _icon(name: str, color: str) -> QIcon:
 
 def icon(name: str, color: str | None = None) -> QIcon:
     return _icon(name, color or tokens()["muted"])
+
+
+def refresh_icons(app) -> None:
+    from PySide6.QtWidgets import QLabel, QPushButton, QTabBar
+
+    for widget in app.allWidgets():
+        if isinstance(widget, QPushButton) and (name := widget.property("icon_name")):
+            color = tokens()["on_accent"] if widget.objectName() == "primary" else None
+            widget.setIcon(icon(name, color))
+        elif isinstance(widget, QLabel) and (name := widget.property("icon_name")):
+            widget.setPixmap(icon(name).pixmap(widget.property("icon_size")))
+        elif isinstance(widget, QTabBar) and (names := widget.property("icon_names")):
+            for index in range(widget.count()):
+                widget.setTabIcon(index, icon(names[index]))

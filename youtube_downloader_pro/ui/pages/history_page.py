@@ -2,10 +2,27 @@ from datetime import UTC, datetime, timedelta
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QStandardItem, QStandardItemModel
-from PySide6.QtWidgets import QAbstractItemView, QHBoxLayout, QHeaderView, QLineEdit, QTableView
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QHBoxLayout,
+    QHeaderView,
+    QLineEdit,
+    QMenu,
+    QTableView,
+    QWidget,
+)
 
 from youtube_downloader_pro.i18n import tr
-from youtube_downloader_pro.ui.widgets.common import EmptyState, Page, button, combo, label
+from youtube_downloader_pro.ui.design import HISTORY_ROW_HEIGHT
+from youtube_downloader_pro.ui.localization import bind_text, watch_language
+from youtube_downloader_pro.ui.widgets.common import (
+    EmptyState,
+    Page,
+    button,
+    combo,
+    disclosure,
+    label,
+)
 from youtube_downloader_pro.ui.widgets.row_delegate import HistoryDelegate
 
 
@@ -21,25 +38,33 @@ class HistoryPage(Page):
         self.offset = 0
         self.rows: list[dict] = []
         self.search = QLineEdit()
-        self.search.setPlaceholderText(tr("Search by title"))
-        self.status = combo(["All", "Completed", "Failed", "Cancelled"])
+        bind_text(self.search, "setPlaceholderText", "Search by title")
+        self.status = combo([])
+        self.status.addItem("All statuses", "All")
+        self.status.addItems(["Completed", "Failed", "Cancelled"])
         self.mode = combo(["All", "video", "audio", "custom"])
-        self.format = combo(["All", "mp4", "webm", "mp3", "m4a", "opus", "flac", "wav"])
-        self.format.setToolTip(tr("Format"))
+        self.format = combo([])
+        self.format.addItem("All formats", "All")
+        self.format.addItems(["mp4", "webm", "mp3", "m4a", "opus", "flac", "wav"])
+        bind_text(self.format, "setToolTip", "Format")
         self.date = combo(["Any time", "Today", "Last 7 days", "Last 30 days"])
         filters = QHBoxLayout()
-        for widget in (self.search, self.status, self.format):
-            filters.addWidget(widget)
+        filters.addWidget(self.search, 1)
+        filters.addWidget(self.status)
+        filters.addWidget(self.format)
         filters.addWidget(button("Refresh", self.refresh))
-        filters.addWidget(button("Clear history", self.clear_requested.emit))
         self.layout.addLayout(filters)
-        extra = QHBoxLayout()
+        self.extra_filters = QWidget()
+        extra = QHBoxLayout(self.extra_filters)
+        extra.setContentsMargins(0, 0, 0, 0)
         extra.addWidget(label("Media type", "caption"))
         extra.addWidget(self.mode)
         extra.addWidget(label("Date", "caption"))
         extra.addWidget(self.date)
         extra.addStretch()
-        self.layout.addLayout(extra)
+        filter_toggle = disclosure("Filters", self.extra_filters)
+        self.layout.addWidget(filter_toggle, 0, Qt.AlignmentFlag.AlignLeft)
+        self.layout.addWidget(self.extra_filters)
         self.model = QStandardItemModel(0, 1)
         self.table = QTableView()
         self.table.setModel(self.model)
@@ -48,7 +73,7 @@ class HistoryPage(Page):
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setShowGrid(False)
         self.table.verticalHeader().hide()
-        self.table.verticalHeader().setDefaultSectionSize(80)
+        self.table.verticalHeader().setDefaultSectionSize(HISTORY_ROW_HEIGHT)
         self.table.horizontalHeader().hide()
         self.table.setItemDelegate(HistoryDelegate(self.table))
         self.table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
@@ -60,15 +85,29 @@ class HistoryPage(Page):
         self.table.hide()
         self.layout.addWidget(self.table, 1)
         actions = QHBoxLayout()
+        self.record_actions = {}
         for text, action in (
             ("Open File", "open_file"),
             ("Open Folder", "open_folder"),
             ("Retry download", "retry"),
-            ("Copy URL", "copy_url"),
         ):
-            actions.addWidget(button(text, lambda _=False, a=action: self._action(a)))
+            control = button(text, lambda _=False, a=action: self._action(a))
+            self.record_actions[action] = control
+            actions.addWidget(control)
         actions.addStretch()
+        more = button("History actions", icon_name="more")
+        menu = QMenu(more)
+        for text, callback in (
+            ("Copy URL", lambda: self._action("copy_url")),
+            ("Clear history", self.clear_requested.emit),
+        ):
+            action = menu.addAction(tr(text), callback)
+            bind_text(action, "setText", text)
+        more.setMenu(menu)
+        actions.addWidget(more)
         self.layout.addLayout(actions)
+        self.table.selectionModel().currentChanged.connect(self._update_actions)
+        self._update_actions()
         pagination = QHBoxLayout()
         self.info = label("Loading history…", "muted")
         pagination.addWidget(self.info, 1)
@@ -84,6 +123,12 @@ class HistoryPage(Page):
         self.search.textChanged.connect(self._changed)
         for widget in (self.status, self.mode, self.date, self.format):
             widget.currentTextChanged.connect(self._changed)
+        watch_language(self, self.retranslate_ui)
+
+    def retranslate_ui(self) -> None:
+        for index, row in enumerate(self.rows):
+            self.model.item(index).setText(row["title"] + " · " + tr(row["status"]))
+        self.table.viewport().update()
 
     def _changed(self) -> None:
         self.offset = 0
@@ -136,3 +181,8 @@ class HistoryPage(Page):
         index = self.table.currentIndex()
         if index.isValid():
             self.action.emit(action, self.rows[index.row()])
+
+    def _update_actions(self, *_args):
+        row = self.table.currentIndex().data(Qt.ItemDataRole.UserRole)
+        for action, control in self.record_actions.items():
+            control.setEnabled(bool(row) and (action == "retry" or bool(row["output_file"])))

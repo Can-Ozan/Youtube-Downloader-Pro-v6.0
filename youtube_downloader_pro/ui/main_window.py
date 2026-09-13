@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QMainWindow,
-    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -25,7 +24,7 @@ from youtube_downloader_pro.core.errors import CancelledError, classify_error
 from youtube_downloader_pro.core.ffmpeg_manager import detect_ffmpeg
 from youtube_downloader_pro.core.scheduler import Scheduler
 from youtube_downloader_pro.core.worker import run_worker
-from youtube_downloader_pro.i18n import set_language, tr
+from youtube_downloader_pro.i18n import language, tr
 from youtube_downloader_pro.models.download_item import DownloadItem
 from youtube_downloader_pro.models.download_status import DownloadStatus as Status
 from youtube_downloader_pro.services.archive_service import ArchiveService
@@ -33,16 +32,16 @@ from youtube_downloader_pro.services.history_service import HistoryService
 from youtube_downloader_pro.services.notification_service import NotificationService
 from youtube_downloader_pro.services.settings_service import SettingsService
 from youtube_downloader_pro.services.update_service import check_engine_version, versions
+from youtube_downloader_pro.ui.design import NAV_HEIGHT, SIDEBAR_WIDTH
 from youtube_downloader_pro.ui.events import UiEvents
-from youtube_downloader_pro.ui.icons import icon
-from youtube_downloader_pro.ui.localization import install_qt_language
+from youtube_downloader_pro.ui.localization import bind_text, install_qt_language, watch_language
 from youtube_downloader_pro.ui.pages.about_page import AboutPage
 from youtube_downloader_pro.ui.pages.history_page import HistoryPage
 from youtube_downloader_pro.ui.pages.home_page import HomePage
 from youtube_downloader_pro.ui.pages.queue_page import QueuePage
 from youtube_downloader_pro.ui.pages.settings_page import SettingsPage
 from youtube_downloader_pro.ui.theme import apply_theme
-from youtube_downloader_pro.ui.widgets.common import Banner, button, label
+from youtube_downloader_pro.ui.widgets.common import Banner, button, icon_label, label
 from youtube_downloader_pro.ui.widgets.media_preview import ThumbnailLoader
 from youtube_downloader_pro.ui.widgets.mini_window import MiniWindow
 from youtube_downloader_pro.ui.widgets.playlist_selector import PlaylistSelector
@@ -62,14 +61,14 @@ class MainWindow(QMainWindow):
     def __init__(self, data_directory: Path | None = None) -> None:
         super().__init__()
         self.setWindowTitle(f"{APP_NAME} · v{__version__}")
-        self.resize(1120, 760)
-        self.setMinimumSize(760, 480)
+        available = QApplication.primaryScreen().availableGeometry()
+        self.setMinimumSize(min(760, available.width() - 32), min(480, available.height() - 32))
+        self.resize(min(1120, available.width() - 32), min(760, available.height() - 32))
         self.log_directory = data_directory / "logs" if data_directory else logs_dir()
         self.settings_service = SettingsService(
             data_directory / "settings.json" if data_directory else None
         )
         self.settings = self.settings_service.load()
-        set_language(self.settings.language)
         self.ui_language = self.settings.language
         install_qt_language(QApplication.instance(), self.ui_language)
         apply_theme(QApplication.instance(), self.settings.theme)
@@ -86,6 +85,8 @@ class MainWindow(QMainWindow):
             ArchiveService(data_directory),
         )
         self.background = ThreadPoolExecutor(max_workers=2, thread_name_prefix="application")
+        # Save in order, independently of potentially long network analysis tasks.
+        self.settings_writer = ThreadPoolExecutor(max_workers=1, thread_name_prefix="settings")
         self.tasks: dict[str, Future] = {}
         self.callbacks: dict[str, object] = {}
         self.task_number = self.history_generation = 0
@@ -106,6 +107,7 @@ class MainWindow(QMainWindow):
             lambda value: self._save_settings(replace(self.settings, mini_always_on_top=value))
         )
         self._connect_pages()
+        watch_language(self, self.retranslate_ui)
         app = QApplication.instance()
         apply_theme(app, self.settings.theme)
         app.styleHints().colorSchemeChanged.connect(self._system_theme_changed)
@@ -127,17 +129,16 @@ class MainWindow(QMainWindow):
         layout.setSpacing(0)
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(184)
+        sidebar.setFixedWidth(SIDEBAR_WIDTH)
         side = QVBoxLayout(sidebar)
-        side.setContentsMargins(12, 24, 12, 16)
+        side.setContentsMargins(8, 16, 8, 16)
         side.setSpacing(4)
         brand = QHBoxLayout()
-        mark = label("")
-        mark.setPixmap(icon("download").pixmap(24, 24))
+        mark = icon_label("download", 24)
         brand.addWidget(mark)
         brand.addWidget(label("YouTube\nDownloader Pro", "brand"), 1)
         side.addLayout(brand)
-        side.addSpacing(24)
+        side.addSpacing(16)
         self.navigation = QButtonGroup(self)
         self.navigation.setExclusive(True)
         self.stack = QStackedWidget()
@@ -156,9 +157,9 @@ class MainWindow(QMainWindow):
         ):
             nav = button(name, icon_name=symbol)
             nav.setObjectName("nav")
-            nav.setToolTip(tr(name))
+            bind_text(nav, "setToolTip", name)
             nav.setCheckable(True)
-            nav.setMinimumHeight(40)
+            nav.setMinimumHeight(NAV_HEIGHT)
             self.navigation.addButton(nav, i)
             nav.clicked.connect(lambda _=False, index=i: self._navigate(index))
             side.addWidget(nav)
@@ -228,13 +229,14 @@ class MainWindow(QMainWindow):
     def _submit(self, name: str, operation, callback) -> None:
         if self.closing:
             return
-        if len(self.tasks) >= 8:
+        if name != "settings" and len(self.tasks) >= 8:
             callback(None, ValueError("Background tasks are busy. Please try again shortly."))
             return
         self.task_number += 1
         key = f"{name}-{self.task_number}"
         self.callbacks[key] = callback
-        future = self.background.submit(operation)
+        executor = self.settings_writer if name == "settings" else self.background
+        future = executor.submit(operation)
         self.tasks[key] = future
 
         def done(result: Future) -> None:
@@ -541,6 +543,8 @@ class MainWindow(QMainWindow):
         self._submit("history-clear", self.history.clear, ready)
 
     def _save_settings(self, settings) -> None:
+        if self.closing:
+            return
         if not self.manager.idle and settings.parallel_downloads != self.manager.workers:
             self.banner.show_message(
                 "Wait for downloads to finish before changing parallel downloads."
@@ -551,7 +555,7 @@ class MainWindow(QMainWindow):
             if error:
                 self._failure(error)
                 return
-            if self.manager.idle:
+            if self.manager.idle and self.manager.workers != settings.parallel_downloads:
                 self.manager.configure_workers(settings.parallel_downloads)
             self.settings = settings
             self.settings_page.settings = settings
@@ -563,25 +567,19 @@ class MainWindow(QMainWindow):
             apply_theme(QApplication.instance(), settings.theme)
             if not settings.clipboard_monitoring:
                 self.clip_banner.hide()
-            for widget in self.findChildren(QPushButton):
-                if symbol := widget.property("icon_name"):
-                    widget.setIcon(icon(symbol))
             self.queue.table.viewport().update()
             self.history_page.table.viewport().update()
-            self.banner.show_message(
-                "Settings saved. Restart the application to change language."
-                if settings.language != self.ui_language
-                else "Settings saved."
-            )
+            self.banner.show_message("Settings saved.")
 
+        install_qt_language(QApplication.instance(), settings.language)
         self._submit("settings", lambda: self.settings_service.save(settings), ready)
+
+    def retranslate_ui(self) -> None:
+        self.ui_language = language()
 
     def _system_theme_changed(self, _scheme) -> None:
         if not self.closing and self.settings.theme == "system":
             apply_theme(QApplication.instance(), self.settings.theme)
-            for widget in self.findChildren(QPushButton):
-                if symbol := widget.property("icon_name"):
-                    widget.setIcon(icon(symbol))
             self.queue.table.viewport().update()
             self.history_page.table.viewport().update()
 
@@ -671,6 +669,7 @@ class MainWindow(QMainWindow):
             if self.manager.idle and not self.tasks and self.thumbnails.idle:
                 self.manager.shutdown()
                 self.background.shutdown(wait=True, cancel_futures=True)
+                self.settings_writer.shutdown(wait=True)
                 self.ready_to_close = True
                 self.close()
             return
@@ -716,6 +715,7 @@ class MainWindow(QMainWindow):
             self.banner.show_message(
                 "Closing safely · stopping downloads and finishing local tasks…"
             )
-            for future in list(self.tasks.values()):
-                future.cancel()
+            for key, future in list(self.tasks.items()):
+                if not key.startswith("settings-"):
+                    future.cancel()
             self.timer.setInterval(100)

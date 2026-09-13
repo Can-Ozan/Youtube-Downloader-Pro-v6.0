@@ -35,6 +35,18 @@ class DownloadTableModel(QAbstractTableModel):
             return f"{item.title} · {tr(item.status.value)} · {item.progress:.1f}%"
         return None
 
+    def retranslate_ui(self) -> None:
+        if self.items:
+            self.dataChanged.emit(
+                self.index(0, 0),
+                self.index(len(self.items) - 1, 0),
+                [
+                    Qt.ItemDataRole.DisplayRole,
+                    Qt.ItemDataRole.AccessibleTextRole,
+                    Qt.ItemDataRole.ToolTipRole,
+                ],
+            )
+
     def update_item(self, item: DownloadItem) -> None:
         row = self.positions.get(item.id)
         if row is None:

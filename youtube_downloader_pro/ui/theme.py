@@ -15,6 +15,7 @@ from youtube_downloader_pro.ui.design import (
     set_palette,
     tokens,
 )
+from youtube_downloader_pro.ui.icons import refresh_icons
 
 
 def apply_theme(app: QApplication, theme: str) -> None:
@@ -45,10 +46,14 @@ def apply_theme(app: QApplication, theme: str) -> None:
         (QPalette.ColorRole.Text, "text"),
         (QPalette.ColorRole.WindowText, "text"),
         (QPalette.ColorRole.ButtonText, "text"),
+        (QPalette.ColorRole.Button, "raised"),
+        (QPalette.ColorRole.PlaceholderText, "muted"),
         (QPalette.ColorRole.Highlight, "selected"),
         (QPalette.ColorRole.HighlightedText, "text"),
     ):
         palette.setColor(role, QColor(c[key]))
+    for role in (QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText):
+        palette.setColor(QPalette.ColorGroup.Disabled, role, QColor(c["muted"]))
     app.setPalette(palette)
     app.setStyleSheet(f"""
         QWidget {{ color: {c["text"]}; font-size: {FONT_BODY}px; }}
@@ -72,8 +77,10 @@ def apply_theme(app: QApplication, theme: str) -> None:
         QPushButton:focus {{ border-color: {c["accent"]}; }}
         QPushButton:pressed {{ background: {c["selected"]}; }}
         QPushButton:disabled {{ color: {c["muted"]}; background: {c["surface"]}; }}
-        QPushButton#primary {{ background: {c["accent_fill"]}; color: white; }}
-        QPushButton#primary:hover {{ background: {c["accent"]}; }}
+        QPushButton#primary {{ background: {c["accent_fill"]}; color: {c["on_accent"]}; }}
+        QPushButton#primary:hover {{ background: {c["accent_hover"]}; }}
+        QPushButton#primary:pressed {{ background: {c["accent_fill"]};
+            border-color: {c["accent"]}; }}
         QPushButton#primary:disabled {{ background: {c["raised"]}; color: {c["muted"]}; }}
         QPushButton#nav {{ text-align: left; padding: 4px 12px; border-radius: 6px;
             border-left: 2px solid transparent; background: transparent; color: {c["muted"]}; }}
@@ -84,11 +91,24 @@ def apply_theme(app: QApplication, theme: str) -> None:
         QPushButton#nav:hover {{ background: {c["hover"]}; }}
         QPushButton#quiet {{ background: transparent; color: {c["muted"]}; text-align: left; }}
         QPushButton#quiet:hover {{ background: {c["hover"]}; color: {c["text"]}; }}
+        QPushButton#disclosure {{ background: transparent; color: {c["muted"]};
+            text-align: left; padding: 4px 8px; }}
+        QPushButton#disclosure:hover, QPushButton#disclosure:checked {{
+            background: {c["raised"]}; color: {c["text"]}; }}
         QLineEdit, QComboBox, QSpinBox, QDateEdit, QTextEdit {{ background: {c["surface"]};
             border: 1px solid {c["border"]}; border-radius: {RADIUS}px; padding: 8px;
             selection-background-color: {c["selected"]}; }}
+        QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled {{
+            background: {c["background"]}; color: {c["muted"]}; }}
+        QLineEdit:hover, QComboBox:hover, QSpinBox:hover {{ border-color: {c["muted"]}; }}
         QLineEdit:focus, QComboBox:focus, QSpinBox:focus {{ border-color: {c["accent"]}; }}
         QComboBox::drop-down {{ border: none; width: 24px; }}
+        QSpinBox {{ padding-right: 24px; }}
+        QSpinBox::up-button, QSpinBox::down-button {{ width: 24px; border: none;
+            background: transparent; }}
+        QSpinBox::up-button:hover, QSpinBox::down-button:hover {{ background: {c["hover"]}; }}
+        QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {{
+            background: {c["selected"]}; }}
         QComboBox QAbstractItemView {{ background: {c["surface"]}; color: {c["text"]};
             selection-background-color: {c["selected"]}; padding: 4px; }}
         QCheckBox {{ spacing: 8px; padding: 4px 0; }}
@@ -103,9 +123,10 @@ def apply_theme(app: QApplication, theme: str) -> None:
         QTableView::item, QListWidget::item {{ padding: 8px; }}
         QHeaderView::section {{ background: {c["background"]}; color: {c["muted"]}; border: none;
             padding: 8px; font-size: {FONT_META}px; }}
-        QTabBar::tab {{ padding: 8px 24px; background: transparent; color: {c["muted"]};
-            border-bottom: 2px solid transparent; }}
-        QTabBar::tab:selected {{ color: {c["text"]}; border-bottom-color: {c["accent"]}; }}
+        QTabBar::tab {{ padding: 8px 24px; margin-right: 4px; background: {c["surface"]};
+            color: {c["muted"]}; border: 1px solid {c["border"]}; border-radius: {RADIUS}px; }}
+        QTabBar::tab:selected {{ color: {c["text"]}; background: {c["selected"]};
+            border-color: {c["accent"]}; }}
         QTabBar::tab:hover {{ background: {c["raised"]}; }}
         QProgressBar {{ background: {c["raised"]}; border: none; border-radius: 3px;
             min-height: 6px; max-height: 6px; }}
@@ -127,3 +148,4 @@ def apply_theme(app: QApplication, theme: str) -> None:
         padding: 8px;
         }}
     """)
+    refresh_icons(app)

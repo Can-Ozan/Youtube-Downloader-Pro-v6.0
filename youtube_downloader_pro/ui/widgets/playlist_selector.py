@@ -2,6 +2,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QListWidget, QListWidgetItem, QVBoxLayout
 
 from youtube_downloader_pro.i18n import tr
+from youtube_downloader_pro.ui.localization import bind_text
 from youtube_downloader_pro.ui.widgets.common import button, label
 
 
@@ -10,7 +11,7 @@ class PlaylistSelector(QDialog):
 
     def __init__(self, media: dict, selected: list[dict], parent=None) -> None:
         super().__init__(parent)
-        self.setWindowTitle(tr("Select playlist videos"))
+        bind_text(self, "setWindowTitle", "Select playlist videos")
         self.resize(700, 580)
         self.selected = {item["url"]: item for item in selected}
         self.media = media

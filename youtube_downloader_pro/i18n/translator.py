@@ -1,7 +1,7 @@
 """Central UTF-8 catalogs using English source messages as stable translation keys.
 
 Like Qt source-text catalogs, identifiers and combo values remain untranslated.
-Language changes are applied at the next application launch, preserving active jobs.
+Translated strings retain their source keys for in-place Qt retranslation.
 """
 
 import ctypes
@@ -55,18 +55,36 @@ def language() -> str:
     return _language
 
 
+class TranslatedText(str):
+    """A string retaining its source key and values for later UI retranslation."""
+
+    def __new__(cls, text, key, values):
+        instance = super().__new__(cls, text)
+        instance.key = key
+        instance.values = values
+        return instance
+
+
 def tr(key: str, **values) -> str:
+    if isinstance(key, TranslatedText):
+        values = key.values | values
+        key = key.key
+    source_values = values
+    values = {
+        name: tr(value) if isinstance(value, TranslatedText) else value
+        for name, value in values.items()
+    }
     english = catalog("en").get(key, key)
     text = catalog(_language).get(key) or english
     if not values:
-        return text
+        return TranslatedText(text, key, source_values)
     try:
-        return text.format(**values)
+        return TranslatedText(text.format(**values), key, source_values)
     except (KeyError, ValueError, IndexError):
         try:
-            return english.format(**values)
+            return TranslatedText(english.format(**values), key, source_values)
         except (KeyError, ValueError, IndexError):
-            return english
+            return TranslatedText(english, key, source_values)
 
 
 @lru_cache(maxsize=1)
@@ -82,6 +100,8 @@ def _message_patterns():
 
 def translate_message(message: str) -> str:
     """Present engine messages without placing language choices in business logic."""
+    if isinstance(message, TranslatedText):
+        return tr(message)
     if message in catalog("en"):
         return tr(message)
     for pattern, key in _message_patterns():

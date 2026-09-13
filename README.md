@@ -1,157 +1,164 @@
 # YouTube Downloader Pro
 
-A Python/PySide6 desktop media download manager. v7 uses an analysis-first workflow, a managed queue, and local settings/history. Media extraction uses yt-dlp; conversion and merging use FFmpeg. Mutagen supplies cover-art metadata support.
-
-**Use only for media you own or are authorized to download and store.** Respect platform terms, copyright, and applicable law. The application does not bypass DRM, paywalls, authentication, CAPTCHAs, or access controls.
-
-This is a tested local release candidate, not a published release. See [the final feature audit](docs/FEATURE_AUDIT.md) for evidence, limitations and release blockers.
-
-## Screenshots
-
-A screenshot of the current Windows interface is included in [docs/screenshots/home.png](docs/screenshots/home.png). Additional platform screenshots can be added after native testing.
+A modern desktop media download manager built with Python, PySide6, yt-dlp and FFmpeg.
+Analyze a link, choose video or audio, and manage downloads through a desktop queue with local history and settings.
 
 ## Features
 
-- Turkish and English interfaces, including standard Qt controls. Language persists and changes after restart. Dark, light, and system themes; Home, Downloads, History, Settings, and About pages.
-- Paste or drop a URL, analyze it without downloading, then review title, uploader, duration, available formats, subtitles, and a thumbnail where supplied.
-- Video resolution discovery, Best Available, MP4/WebM, and a custom yt-dlp format selector.
-- Actual FFmpeg audio conversion to MP3, M4A, OPUS, FLAC, or WAV. Lossy audio supports 128/192/256/320 kbps; lossless formats ignore bitrate.
-- A queue with 1–5 concurrent downloads, 1–8 fragments per download, speed limits, progress, speed, ETA, cancellation, retry, search, and status filtering.
-- Three-attempt retries for temporary network failures, with 2- and 4-second backoff. Permanent errors are not retried automatically.
-- Playlist selection in pages of up to 100 entries. Selections persist while moving between pages.
-- Manual/automatic subtitles, preferred or selected language codes, and SRT/VTT conversion where FFmpeg is available.
-- Optional metadata, chapters, descriptions, cover artwork, and thumbnail files, subject to container support.
-- Persistent settings, SQLite history with title/status/type/date/format filters and 100-row pagination, and an optional verified download archive.
-- Optional clipboard detection with Analyze/Dismiss actions, tray notifications, scheduled queue starts, and a floating Mini Mode.
-- Cross-platform FFmpeg detection, rotating logs, About/version information, and an explicit read-only engine version check.
+- **Media analysis:** inspect the title, uploader, duration, available qualities, subtitle languages and thumbnail when the source provides them.
+- **Video and audio:** MP4/WebM video downloads and actual MP3, M4A, OPUS, FLAC and WAV audio conversion.
+- **Source-based quality choices:** Best, 4K and other discovered resolutions; advanced users can supply a custom yt-dlp format selector.
+- **Playlists:** select individual entries across paginated results before adding them to the queue.
+- **Download management:** queue search and status filtering, 1–5 parallel downloads, speed limits, progress, speed and ETA when available, cancellation and retry.
+- **History:** local SQLite records with search, status/type/date/format filters, pagination, retry, Open File and Open Folder actions.
+- **Media options:** manual or automatic subtitles, metadata, chapters, descriptions, thumbnail files and cover artwork where supported by the source and output format.
+- **Preferences:** persistent settings, immediate Turkish/English switching, and Dark, Light and System themes.
+- **Desktop helpers:** Mini Mode, optional clipboard link suggestions, scheduled queue starts while the app remains open, and optional system-tray notifications where the desktop supports them.
+
+Media processing is covered by tests using locally generated files and real yt-dlp/FFmpeg. Support for a particular website, format or remote playlist depends on the source and extractor. Desktop notification delivery depends on the OS/session. See [Testing](#testing) for validation coverage and limits.
+
+## Screenshots
+
+| Page | Screenshot status |
+| --- | --- |
+| Home | [Existing capture](docs/screenshots/home.png); needs refreshing to show the final visual polish. |
+| Downloads | Screenshot pending: `docs/screenshots/downloads.png`. |
+| Settings | Screenshot pending: `docs/screenshots/settings.png`. |
+
+## Languages
+
+- Türkçe
+- English
+
+Choose a language in **Settings → General** and save. The running interface switches immediately, without restarting or interrupting downloads. The selected language persists after closing and reopening the app. Missing translations fall back to English.
+
+Media titles, uploader names, paths and source format identifiers retain their original text.
 
 ## Download / Windows
 
-When the owner publishes a tested Windows x64 release:
+For a published Windows build:
 
-1. Download the Windows x64 ZIP from [GitHub Releases](https://github.com/Can-Ozan/Youtube-Downloader-Pro-v6.0/releases).
-2. Extract the entire ZIP to a folder.
-3. Double-click **YouTube Downloader Pro.exe** inside that folder.
+1. Open [GitHub Releases](https://github.com/Can-Ozan/Youtube-Downloader-Pro-v6.0/releases).
+2. Download the latest Windows x64 ZIP asset.
+3. Extract the **entire ZIP** to a folder.
+4. Open the extracted application folder and run **YouTube Downloader Pro.exe**.
 
-Keep the `_internal` folder beside the EXE. Normal users do not need Python,
-pip, Qt, yt-dlp or a terminal. A v7 release has not been published by this work.
-Default test builds do not include FFmpeg; full conversion/merging requires a
-verified bundled or installed FFmpeg/ffprobe pair. Check the release notes.
+Keep the `_internal` folder beside the EXE. The packaged application includes Python and its Python/Qt dependencies; **users do not need to install Python**. FFmpeg is separate in the current default package; see [FFmpeg](#ffmpeg).
 
-Unsigned applications can trigger Windows SmartScreen or antivirus reputation
-warnings. Verify the download source and published checksum and investigate
-warnings; do not blindly bypass Windows security protections.
+If no Windows ZIP is listed, a packaged release is not available there yet. GitHub Actions build artifacts are separate from published releases.
 
-## Source requirements
+## Usage
 
-- Python **3.11 or newer** supported by the declared dependencies; CI targets 3.11 and 3.12.
-- Windows, macOS, or a desktop Linux environment supported by PySide6. Native Windows startup/build tests were performed locally; other platforms have CI configuration and mocked OS helper tests.
-- FFmpeg **and ffprobe** for full processing support. Without them, compatible combined audio/video formats can still download; high-resolution merging, conversion, and artwork need FFmpeg.
-- Sufficient free disk space. Known estimates receive a preflight check; temporary transfer/processing files also require space. Estimates are not guarantees.
+1. Paste or drop a media URL into **Home**.
+2. Click **Analyze** to load the media details.
+3. Choose **Video** or **Audio**.
+4. Select the available quality and output format.
+5. If needed, change the download folder in **Settings → General**, save, then return to Home.
+6. Click **Start Download**.
+7. Monitor progress and use Cancel or Retry in **Downloads**.
+8. Find previous attempts and open completed files from **History**.
 
-The dependency ranges in `pyproject.toml` are the authoritative requirements. The application version is defined only in `youtube_downloader_pro/__init__.py`; the UI, package, and build read it.
+For a playlist, use **Select playlist videos** after analysis. Selections remain available as you move between pages.
 
-## Installation and running from source
+**Advanced** on Home contains bitrate, additional audio formats, subtitle and metadata options, and Custom mode. **Add to queue** defers starting; use **Start now** in Downloads or expand **Schedule** and enter a local 24-hour time such as `18:30`. A time already passed schedules the next day. The app must remain open.
 
-Clone this repository, then create an isolated environment:
+Cancel stops the current job and cleans up its temporary files. Retry starts a new attempt. Pause/resume, live streams, and restoring the live queue or schedule after an application restart are not supported.
+
+## Supported Formats
+
+| Output | Supported choices | Behavior |
+| --- | --- | --- |
+| Video | MP4, WebM | Downloads compatible source streams; FFmpeg merges separate video/audio streams when required. |
+| Audio | MP3, M4A, OPUS | FFmpeg extracts/converts audio. Bitrate choices are available under Advanced. |
+| Audio | FLAC, WAV | FFmpeg produces lossless output; bitrate selection does not apply. Lossless output cannot restore detail absent from the source. |
+| Subtitles | SRT, VTT | Downloads available subtitles; FFmpeg converts them when necessary. |
+
+Audio output uses yt-dlp's FFmpeg postprocessing pipeline, not a renamed file extension. MP3 and M4A are the standard Audio choices; OPUS, FLAC and WAV are available under Advanced. Custom mode accepts source-specific format selectors and must produce one final media file per queue item.
+
+Embedded artwork is not supported for WAV or WebM. Other artwork and metadata options depend on the container, source data and available processing tools.
+
+## Quality
+
+Single-media analysis populates the quality list from the resolutions reported by the source. **Best** selects the best compatible available streams. **4K** represents 2160p; other choices, such as 1440p, 1080p or 720p, appear when discovered.
+
+A selected resolution is an **upper limit**, not a promise that the source has that exact quality. MP4/WebM selection also constrains compatible streams. If no compatible format is available, the job reports an error.
+
+Playlists offer standard resolution limits because entries are analyzed individually when their jobs start. Neither choosing a higher resolution nor converting to a different format improves the original source quality.
+
+## FFmpeg
+
+FFmpeg handles audio conversion, merging separate video/audio streams, subtitle conversion, and supported metadata, chapter and artwork processing. Full processing requires both **FFmpeg and ffprobe**. Without them, compatible video files containing both audio and video can still download.
+
+The application probes candidates in this order and uses the first working pair:
+
+1. Bundled `ffmpeg/` or `ffmpeg/bin/` under the application resource directory. In Windows ONEDIR builds, this is inside `_internal/`.
+2. `ffmpeg/bin/` under the default application data directory, such as `%LOCALAPPDATA%\YouTubeDownloaderPro\ffmpeg\bin` on Windows.
+3. System `PATH`, with ffprobe beside the detected FFmpeg executable.
+
+**The current local Windows package and default build do not bundle FFmpeg.** Install a trusted FFmpeg/ffprobe pair separately and make it discoverable through one of these locations. The app does not download or install these binaries. About displays the detected version, source and ffprobe status. Restart the app after changing the installation or `PATH`; this is separate from language changes, which apply immediately.
+
+Optional bundling requires an explicitly supplied, verified distribution and its provenance/notices. See [Windows build documentation](docs/WINDOWS_BUILD.md#ffmpeg-distribution).
+
+## Running From Source
+
+The Windows example uses Python 3.12:
 
 ```powershell
 git clone https://github.com/Can-Ozan/Youtube-Downloader-Pro-v6.0.git
 cd Youtube-Downloader-Pro-v6.0
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
+python -m pip install -e .
 python -m youtube_downloader_pro
 ```
 
-On macOS/Linux, use `python3 -m venv .venv` and `source .venv/bin/activate` instead. For a runtime-only installation, use `python -m pip install -e .`.
+On macOS/Linux, after cloning and entering the repository, use a supported Python interpreter:
 
-All three entry points run the same application:
-
-```text
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
 python -m youtube_downloader_pro
-python youtube_indirici.py
-youtube-downloader-pro
 ```
 
-`youtube_indirici.py` is a compatibility launcher; it does not contain a second download engine. The original implementation is preserved in Git history.
+If shell activation is unavailable, invoke the virtual environment's Python directly: `.\.venv\Scripts\python.exe` on Windows or `.venv/bin/python` on macOS/Linux.
 
-## FFmpeg
+`youtube_indirici.py` remains a compatibility launcher for the same modular application; it is not a separate legacy download engine.
 
-Install FFmpeg/ffprobe through your OS package manager or a trusted distribution linked from the [official FFmpeg download page](https://ffmpeg.org/download.html). Verify the distributor's checksums/signatures before using manually downloaded binaries. Do not download executable files from untrusted mirrors.
+## Requirements
 
-Detection order:
+- **Python 3.11 or newer** for source use, as declared in [pyproject.toml](pyproject.toml). CI targets Python 3.11 and 3.12.
+- A desktop environment supported by PySide6. Windows x64 has the dedicated distribution pipeline; macOS/Linux source support also has CI configuration.
+- FFmpeg and ffprobe for full media processing.
+- Network access to the requested media source and enough writable disk space for output and temporary processing files.
 
-1. Bundled `ffmpeg/` inside the resource directory (`_internal/` in Windows ONEDIR); legacy source `ffmpeg/bin/` is also supported.
-2. `<application data>/ffmpeg/bin/` for an explicitly managed installation.
-3. System `PATH`, using `shutil.which()` and bounded version probes.
+Dependency versions and development extras are defined in `pyproject.toml`.
 
-Place both `ffmpeg` and `ffprobe` in the selected directory (`.exe` on Windows). Restart after changing installation or `PATH`. About displays the detected version/source and ffprobe status. The GUI never downloads binaries or runs a package installer.
-
-## Usage
-
-1. Paste or drag a complete HTTP/HTTPS media URL into Home, then click **Analyze**.
-2. For a playlist, open **Select playlist videos**. Select individual rows or all rows on the current page, then use Next/Previous to load more. Nothing is automatically enqueued during analysis.
-3. Choose Video, Audio, or Custom. Video resolutions are upper limits; the engine selects a matching available format. MP4/WebM choices constrain both container and compatible source streams; unavailable choices fail visibly rather than silently increasing resolution or changing the format.
-4. Configure subtitles and advanced options. Playlist entries are analyzed individually when they start; preferred languages are useful when a flat playlist has no subtitle metadata.
-5. Click **Start Download** to enqueue and start immediately. For deferred downloads, click **Add to queue**, then **Start now**, or enter a valid local 24-hour time such as `18:30` and choose **Start at…**. A time already passed runs the next day. A new schedule replaces the previous one. The app must stay open.
-6. Use queue actions or the context menu to cancel, retry, remove, open outputs/folders, or copy URLs. Double-click a row for error details. Use **Download again anyway** to override the archive.
-7. History retains completed/failed/cancelled attempts that reached the manager's worker, with retry options. Clearing history leaves media files and the separate archive intact.
-
-Cancel stops the current media process and its children. Partial job files are cleaned up. Retry starts a fresh attempt; pause/resume and retaining partial files across application restarts are not implemented. Completion requires a nonempty final media file after all requested processing and publication.
-
-## Settings, history, and privacy
-
-Default locations come from `platformdirs`, never an arbitrary working directory:
-
-| Data | Location |
-| --- | --- |
-| Settings/history/archive | OS application data directory for `YouTubeDownloaderPro` |
-| Logs | OS log directory for `YouTubeDownloaderPro` |
-| Downloads | OS Downloads directory / `YouTube Downloader Pro` |
-
-Typical data directories are `%LOCALAPPDATA%\YouTubeDownloaderPro` on Windows, `~/Library/Application Support/YouTubeDownloaderPro` on macOS, and `~/.local/share/YouTubeDownloaderPro` on Linux. `platformdirs` honors applicable OS/XDG settings. `--data-dir PATH` explicitly overrides settings/history/archive and logging for tests or portable use.
-
-Settings include folder, theme, default quality/container/audio codec, audio bitrate, concurrency, speed limit, subtitle preferences, metadata/artwork, filename template, history/archive, clipboard, notifications, auto-open, and Mini Mode preference. Turkish and English are available; the first launch follows the system UI language when supported, otherwise English. Changing language requires a restart. Missing translations fall back to English. Save applies defaults to new queue entries; queued items retain their own settings. Parallelism changes require an idle queue.
-
-The default template is `%(title)s [%(id)s].%(ext)s`. Supported fields are `title`, `id`, `uploader`, `channel`, `playlist`, `playlist_index`, and `ext`, with up to two safe subfolders. Presets are available. Unsafe characters/reserved names are sanitized, and colliding files receive numbered suffixes; existing files are never overwritten. Extremely long Windows paths are rejected with a clear message.
-
-History stores source URLs, titles, final paths, format/quality, size, state/date, duration, thumbnail URL, and the options needed to retry. Disable history if you do not want those records. The optional archive independently stores source URLs and yt-dlp media identities, and exports `download-archive.txt` in yt-dlp's archive format. A media-identity match can recognize alternate URLs after analysis. The SQLite ledger is authoritative; enabling the archive does not import external archive text files.
-
-No telemetry, passwords, browser cookies, tokens, or session credentials are collected. Clipboard monitoring is off by default and only suggests recognized media hosts. Thumbnail loading and media analysis contact the relevant media hosts. The explicit version-check button contacts PyPI; it does not install anything. Logs redact URLs and credential-like fields and rotate at 2 MB with three backups. Review logs before sharing them.
-
-## Architecture and project structure
+## Project Structure
 
 ```text
-youtube_indirici.py                 Compatibility launcher
-pyproject.toml                     Package/dependency/tool configuration
-build/windows.spec                Windows ONEDIR source specification
-scripts/build_windows.ps1          Windows build and validation
-scripts/package_release.ps1        Runtime ZIP and SHA256
-scripts/clean_build.ps1            Safe generated-output cleanup
 youtube_downloader_pro/
-    __init__.py                    Single application version source
-    main.py, __main__.py            Startup and command-line options
-    core/                          Queue manager, yt-dlp adapter, process runner,
-                                   errors, FFmpeg detection, schedule, clipboard
-    models/                        Download items, states, immutable settings/options
-    services/                      Settings, SQLite history/archive, notifications,
-                                   read-only version checks
-    i18n/                          Matched UTF-8 Turkish/English catalogs and fallback
-    ui/                            Main window, themes, five pages, reusable widgets
-    utils/                         Validation, formatting, paths, staged output, logs
-tests/                             Unit, UI, generated-media integration tests
-docs/AUDIT.md                      Findings from the original implementation
-.github/workflows/ci.yml            Cross-platform validation
-.github/workflows/windows-build.yml Windows build, smoke, ZIP and checksum
-scripts/benchmark_ui.py            Opt-in local UI benchmark
+    main.py, __main__.py    Application startup and module entry point
+    core/                  Download manager, yt-dlp workers, FFmpeg detection,
+                           scheduling and clipboard validation
+    models/                Download items, states and settings
+    services/              Settings, SQLite history/archive, notifications,
+                           read-only engine version checks
+    ui/                    Main window, pages, widgets and themes
+    i18n/                  Turkish/English catalogs and translation support
+    utils/                 Paths, resources, logging and output validation
+youtube_indirici.py         Compatibility launcher
+tests/                     Unit, UI and generated-media integration tests
+scripts/                   Build, package, cleanup and UI benchmark tools
+build/windows.spec         Windows ONEDIR source specification
+docs/                      Audits, build notes and screenshots
+assets/                    Optional application assets
+.github/workflows/         Cross-platform checks and Windows build workflow
 ```
 
-The manager owns queue state behind a lock. A bounded `ThreadPoolExecutor` supervises isolated spawned media processes. The Qt UI receives snapshots through queued signals; workers never manipulate widgets. A separate bounded executor handles history, version checks, settings writes, and FFmpeg probing. The scheduler uses one low-frequency Qt timer. Qt network requests handle bounded thumbnail loading; image decoding/scaling runs in a two-thread pool. UI progress is coalesced at 125 ms, with state changes delivered immediately. Only affected virtual rows repaint; searches are debounced and history queries run in the background.
+The Qt interface receives worker events rather than running downloads on the UI thread. Progress updates are batched and update affected rows; history queries and media work run in background tasks. The application version has one source: `youtube_downloader_pro/__init__.py`.
 
-Each download has a private staging directory on the destination filesystem. The parent verifies and publishes media and sidecars without overwrites, using atomic hard links where supported and exclusive streaming copies elsewhere. Cancellation rolls back files created during incomplete publication. Disk/network/processing failures are distinct from completion. On close the application cancels work, waits asynchronously, joins workers, and shuts down its executors.
-
-## Development and testing
+## Development
 
 Inside the activated virtual environment:
 
@@ -159,66 +166,105 @@ Inside the activated virtual environment:
 python -m pip install -e ".[dev]"
 python -m pytest
 ruff check .
-ruff format --check .
 python -m compileall youtube_downloader_pro
-python -c "from youtube_downloader_pro.ui.main_window import MainWindow"
-python -m youtube_downloader_pro --smoke-test --data-dir .test-artifacts/startup
 ```
 
-For headless startup set `QT_QPA_PLATFORM=offscreen`. The tests configure this automatically. Native screenshots can be captured with `--screenshot PATH`. GUI smoke mode exits after initialization and graceful shutdown.
-
-Unit tests mock external behavior. Integration tests generate their own tone/video and serve it over loopback HTTP, then exercise real yt-dlp and decode converted output with FFmpeg. No copyrighted third-party media is downloaded. Conversion tests skip when FFmpeg is missing; set `YDP_TEST_FFMPEG` to a trusted executable to run them. Linux CI installs the Qt system libraries needed for headless tests. OS file/folder launch commands are mocked on platforms not running locally.
-
-For source dependency maintenance, update within the project virtual environment and rerun tests:
+For a startup/import smoke check with isolated local settings and history:
 
 ```text
-python -m pip install --upgrade -e ".[dev]"
+python -m youtube_downloader_pro --smoke-test --data-dir .test-artifacts/startup --smoke-report .test-artifacts/startup-report.json
 ```
 
-This is a developer action, not application behavior. Packaged engines are updated by rebuilding the application. The CI workflow runs checks on Windows, Ubuntu, and macOS and builds Windows; the Windows workflow uploads test artifacts without publishing a GitHub Release. Successful local tests do not imply that the remote CI matrix has already run.
+For headless checks, set `QT_QPA_PLATFORM=offscreen` first: `$env:QT_QPA_PLATFORM='offscreen'` in PowerShell, or `export QT_QPA_PLATFORM=offscreen` on macOS/Linux. Smoke mode initializes the application, checks resources/persistence and spawned engine imports, then exits gracefully.
 
-The final local verification record and remaining blockers are in [docs/FEATURE_AUDIT.md](docs/FEATURE_AUDIT.md). Earlier reports are historical. Run `python scripts/benchmark_ui.py --output .test-artifacts/ui-benchmark/after.json` for the opt-in synthetic benchmark.
+The existing synthetic UI benchmark measures startup, progress-event batching, timer responsiveness, idle CPU and shutdown:
 
-## Windows standalone builds
+```text
+python scripts/benchmark_ui.py --output .test-artifacts/ui-benchmark/after.json
+```
 
-On Windows, create a Python 3.12 x64 virtual environment and run:
+The benchmark uses local synthetic rows and makes no media network requests. Results depend on the machine and workload.
+
+## Windows Build
+
+Use Windows x64 and an existing virtual environment created with Python 3.12 x64 as above. From the repository root:
 
 ```powershell
-py -3.12 -m venv .venv
-./scripts/build_windows.ps1 -InstallDependencies
-./scripts/package_release.ps1
+.\scripts\build_windows.ps1 -InstallDependencies
+.\scripts\package_release.ps1
 ```
 
-The production ONEDIR output is `dist/YouTube Downloader Pro/YouTube Downloader Pro.exe`.
-The versioned ZIP and SHA256 are written to `release/`. All supporting files must
-stay with the EXE. The build uses the same application entry point as source.
-No UPX, installer, automatic release publishing or onefile build is enabled.
+The build script finds `.venv` automatically. `-InstallDependencies` explicitly installs the project's development dependencies there; omit it for subsequent builds with dependencies already installed.
 
-See [Windows build instructions](docs/WINDOWS_BUILD.md) for resource paths,
-FFmpeg provenance, icon placement, debugging, cleanup, CI and release validation.
-Build, native/offscreen startup results and exact artifact hashes are recorded in
-the [final feature audit](docs/FEATURE_AUDIT.md). Earlier Windows validation reports
-refer to earlier artifacts. Clean-machine Windows 10/11 acceptance and distribution
-licensing remain release tasks.
+The build runs pytest, Ruff, compileall and source smoke checks, creates the PyInstaller **ONEDIR** application, audits the distribution and runs a packaged startup smoke test. Packaging requires successful smoke evidence matching the current distribution files and creates a ZIP, SHA256 checksum and validation report.
 
-## Troubleshooting and current limits
+| Artifact | Output path |
+| --- | --- |
+| EXE | `dist/YouTube Downloader Pro/YouTube Downloader Pro.exe` |
+| ZIP | `release/YouTube-Downloader-Pro-v<version>-Windows-x64.zip` |
+| Checksum | The ZIP path followed by `.sha256` |
+| Validation report | The ZIP path followed by `.validation.json` |
 
-- **FFmpeg unavailable:** ensure both executables are discoverable and runnable, then restart. Audio conversion and separate video/audio merging require them.
-- **Unavailable/private/protected media or verification prompts:** open the source platform normally. This app does not supply access-control workarounds or credentials.
-- **YouTube/site extraction failures:** platform behavior changes. Review the logs and the installed engine version. Remote JavaScript challenge components and runtime auto-discovery are disabled; media requiring them may not be available through this application. Live analysis returned 49 formats for the Blender Foundation’s Big Buck Bunny video during the final pass. Remote media downloads were not validated; automated download tests use locally generated media.
-- **Format unavailable:** analyze again, choose Best Available, another container, or a source format in Custom mode. A custom selector producing multiple outputs is rejected because one queue item must map to one verified output.
-- **Artwork failures:** WAV/WebM artwork embedding is rejected; other codec/artwork combinations still depend on FFmpeg/yt-dlp support.
-- **Disk/permission/path error:** free space or choose a writable, shorter folder/template. Size estimates can be absent or wrong. Staging folders left by a power loss can be removed when no application instance is running.
-- **No thumbnail/subtitles/size:** sources do not always provide these fields. Thumbnail requests are size-limited, and redirects are not followed; downloads still work without preview artwork.
-- **Schedule did not run:** the app must stay running. Schedules and the live queue do not persist across restart. Desktop sleep/time-zone changes may delay local schedules; no background OS service is installed.
-- **No notification:** tray availability and notification support depend on the OS/session; banners remain available.
-- **UI language:** Turkish/English application messages and standard Qt controls are translated. Media titles, uploader names, paths, format IDs and upstream technical diagnostics retain their original text; technical diagnostics are available in logs.
-- **Live streams:** not supported; use a finished recording. Pause/resume is not exposed because it cannot be implemented reliably across the transfer/postprocessing pipeline here.
+The version is read from the package. Distribute the complete ONEDIR folder, including `_internal`, rather than the EXE alone.
 
-## Security and licensing
+The build performs scoped cleanup automatically. To preview or run cleanup separately:
 
-URL input accepts HTTP/HTTPS only and rejects embedded credentials. Filename templates cannot traverse out of the chosen folder. Media/plugin update payloads are never executed. Third-party yt-dlp plugin discovery is disabled. Subprocesses use argument lists, and opening files is restricted to media/text/image types. FFmpeg detection executes only the detected installed/bundled/managed tool. There is no binary downloader or archive extractor in the application.
+```powershell
+.\scripts\clean_build.ps1 -WhatIf
+.\scripts\clean_build.ps1
+```
 
-This repository does **not** include a project LICENSE. No MIT or other project license is claimed; the repository owner must choose one. Dependencies have their own licenses.
+Cleanup removes generated `build/.work/`, `build/.cache/` and `dist/`. It preserves `build/windows.spec` and existing release archives; `-IncludeRelease` additionally removes `release/`.
 
-Developer: **Yusuf Can Ozan / Can-Ozan**. [Repository](https://github.com/Can-Ozan/Youtube-Downloader-Pro-v6.0).
+The [Windows GitHub Actions workflow](.github/workflows/windows-build.yml) runs this pipeline on `windows-latest` and uploads build artifacts. It does not publish a GitHub Release. See [Windows build documentation](docs/WINDOWS_BUILD.md) for FFmpeg bundling, optional icons, diagnostics and distribution checks. Rebuild and validate from the current source before distributing an updated ZIP.
+
+## Testing
+
+- **Pytest:** validation, queue transitions, cancellation, retry, settings/history persistence and UI-to-engine integration.
+- **Real media processing:** locally generated audio/video served over loopback HTTP, converted or merged with yt-dlp/FFmpeg, then decoded to check the output. Includes subtitle, metadata and artwork cases. FFmpeg-dependent cases skip if FFmpeg is unavailable; `YDP_TEST_FFMPEG` can select a trusted test executable.
+- **UI validation:** live TR ↔ EN switching, persistence, dynamically created widgets, all themes, layout constraints and progress batching. Recent arrow checks also exercised simulated 100–200% DPI scaling.
+- **Static/startup checks:** Ruff, compileall, source smoke tests and packaged resource/import/persistence checks.
+
+The [CI configuration](.github/workflows/ci.yml) targets Windows, Ubuntu and macOS. Configured CI jobs are not proof that every platform has passed. Offscreen Qt checks do not replace native testing, physical monitor/DPI changes, notification delivery, or clean-machine Windows acceptance. Remote media downloads and remote YouTube playlists are not covered by the local generated-media tests. [Feature audit](docs/FEATURE_AUDIT.md) records additional evidence and release limitations; dated results refer to their respective snapshots.
+
+## Troubleshooting
+
+| Issue | What to check |
+| --- | --- |
+| FFmpeg not found | Ensure both FFmpeg and ffprobe are installed together in a detected location, then restart. Check About for detection status. |
+| Unavailable or unsupported media | Check the URL and source availability. Private, protected and live content is unsupported. The app supplies no credentials or access-control bypasses. JavaScript runtimes and remote challenge components are disabled, which can limit some YouTube formats. |
+| Network or extraction errors | Check connectivity and retry. Temporary failures receive bounded automatic retries. About can check the installed engine against PyPI; it does not install updates. Packaged engine updates require a newer build. |
+| Format unavailable | Analyze again and try Best or another container. Available source formats determine what can be downloaded. |
+| Output folder or disk errors | Choose a writable folder, free disk space and shorten the folder/template if needed. Temporary processing needs additional space. |
+| SmartScreen warning | Unsigned builds may trigger reputation warnings. Verify the release source and published SHA256, investigate the warning and contact the publisher if uncertain. |
+| Schedule or notification missing | Scheduling requires the app to remain open. Notifications require the setting to be enabled and a desktop session that supports system-tray messages. |
+
+## Privacy
+
+Settings, history, the optional download archive and logs are stored locally. Default locations come from `platformdirs`, outside the application installation directory:
+
+| Data | Typical Windows location |
+| --- | --- |
+| Settings, history and archive | `%LOCALAPPDATA%\YouTubeDownloaderPro` |
+| Logs | `%LOCALAPPDATA%\YouTubeDownloaderPro\Logs` |
+| Downloads | The user's Downloads folder / `YouTube Downloader Pro` |
+
+macOS/Linux use their platform-specific application data and log locations. `--data-dir` explicitly overrides settings/history/archive and log storage for tests or portable use.
+
+History stores source URLs, titles, output paths and download options. It can be disabled or cleared; clearing history does not remove downloaded media or the independent archive. Logs rotate and redact URLs and common credential-like fields, but should still be reviewed before sharing.
+
+Analysis, downloads and thumbnail previews contact media hosts. The explicit engine version check contacts PyPI. Clipboard monitoring is off by default; enabling it shows suggestions for recognized media URLs and does not start downloads automatically. The application does not load browser cookies or provide account sign-in.
+
+## Legal Notice
+
+YouTube Downloader Pro is intended for downloading media that you own or are authorized to download. Users are responsible for complying with applicable copyright laws and platform terms.
+
+## License
+
+No project `LICENSE` file has been added, and no project license is claimed here. The repository owner must select the license. Dependencies retain their own licenses; see [third-party notes](docs/THIRD_PARTY.md) and complete the applicable distribution requirements before publishing binaries.
+
+## Author
+
+**Yusuf Can Ozan** · GitHub: [Can-Ozan](https://github.com/Can-Ozan)
+
+[Project repository](https://github.com/Can-Ozan/Youtube-Downloader-Pro-v6.0)

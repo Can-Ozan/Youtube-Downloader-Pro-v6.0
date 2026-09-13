@@ -4,6 +4,31 @@ This audit supersedes the earlier AUDIT/VALIDATION/WINDOWS_VALIDATION implementa
 reports. Work continued in the existing checkout. No commit, push, tag or release
 publication was performed. The application remains v7.0.0.
 
+## Live language switching update — 2026-09-12
+
+Save settings now applies Turkish/English immediately through one Qt
+`languageChanged` signal. Existing pages, navigation, tabs, placeholders,
+accessibility labels, tooltips, menus, playlist/folder dialogs, banners, Mini Mode,
+cached media details and queue/history rows retranslate in place. Widgets created
+after switching use the current catalog. Language restart instructions and their
+two obsolete catalog entries were replaced by an immediate-application hint.
+
+Language-only saves preserve analyzed media, per-media format/subtitle choices,
+selections, history, queue records and running workers. Settings writes run in order
+on a dedicated executor so analysis cannot delay persistence; closing immediately
+after Save drains pending settings writes. The download engine was not modified.
+
+Validation: **124 tests passed** (including six new live-language cases),
+`ruff check .` passed, and `python -m compileall youtube_downloader_pro` passed.
+Existing startup/import smoke tests passed in both languages with isolated profiles,
+SQLite/settings round trips and spawned yt-dlp imports. Evidence is in
+`.test-artifacts/live-language-full.xml` and
+`.test-artifacts/live-language-smoke/{tr,en}/report.json`.
+Qt tests and these smoke runs used Windows with the offscreen platform.
+Previously delivered OS notifications cannot be rewritten; future notifications
+use the current language and existing in-app banners update immediately.
+The earlier EXE/ZIP described below were not rebuilt during this language-only pass.
+
 ## Scope and evidence
 
 The original 591-line Tkinter application has already become a six-line compatibility
@@ -30,7 +55,7 @@ already contains substantial legacy deletions.
 | Clipboard watcher | Opt-in host validation and duplicate suppression tested. Qt clipboard changes trigger suggestions; nothing downloads automatically. |
 | Mini mode | Show/restore and always-on-top persistence tested through Qt. Closing Mini restores the main window. |
 | Notifications | Implemented via Qt system tray with availability/user-setting checks and localized banners. Desktop delivery is OS/session dependent and is not proven by offscreen tests. |
-| Settings / language | Atomic settings writes and restart tests pass. Existing queue entries retain their options. Concurrency changes require idle workers. |
+| Settings / language | Live TR/EN switching and persistence after closing/reopening pass, including busy background work and rapid saves. Existing queue entries and media choices retain their options. Concurrency changes require idle workers. |
 | Dark / Light / System | All theme paths exercised. System changes update the palette and queue/history paint; both languages visually inspected at 760×480. About content now scrolls at small sizes. |
 | FFmpeg | Bundled/managed/PATH detection and fallback tests pass. System FFmpeg 9.0 used for real source tests. No FFmpeg executable bundled by default. |
 | yt-dlp | Installed 2026.8.19; real extraction/downloads and spawned imports tested. JavaScript runtimes/remote challenge downloads remain disabled; some YouTube formats can be missing. |
@@ -62,11 +87,12 @@ already contains substantial legacy deletions.
 
 ## Localization
 
-269 matching UTF-8 keys per language, with matching format placeholders. Tests cover
+268 matching UTF-8 keys per language, with matching format placeholders. Tests cover
 English fallback for a missing Turkish entry and a malformed substitution, system
 language selection, raw engine combo values, saving language, closing and reopening
-with the new language. Standard Qt controls use qtbase_tr.qm; folder selection uses
-Qt's translated dialog. Language changes intentionally require restart.
+with the new language, live switching in both directions, preserved active downloads,
+and widgets created after switching. Standard Qt controls use qtbase_tr.qm; folder
+selection uses Qt's translated dialog. Language changes apply immediately on Save.
 
 Static user-facing strings are centralized in catalogs. UI titles, buttons, banners,
 settings, status/delegate labels, tooltips and menus were audited. Media titles,

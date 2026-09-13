@@ -18,7 +18,9 @@ from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequ
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout
 
 from youtube_downloader_pro.i18n import tr
+from youtube_downloader_pro.ui.design import PREVIEW_SIZE
 from youtube_downloader_pro.ui.icons import icon
+from youtube_downloader_pro.ui.localization import watch_language
 from youtube_downloader_pro.ui.widgets.common import label
 from youtube_downloader_pro.utils.formatting import format_bytes, format_duration
 from youtube_downloader_pro.utils.validators import ValidationError, validate_url
@@ -153,30 +155,39 @@ class MediaPreview(QFrame):
         self.setObjectName("card")
         self.thumbnails = thumbnails
         self.url = ""
+        self.media = None
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
         self.image = label("")
         self.image.setPixmap(icon("video").pixmap(32, 32))
         self.image.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image.setFixedSize(192, 108)
+        self.image.setFixedSize(*PREVIEW_SIZE)
         layout.addWidget(self.image)
         details = QVBoxLayout()
         self.title = label("Analyze a link to see its details", "section", True)
         self.meta = label("", "muted", True)
         self.formats = label("", "muted", True)
-        details.addWidget(label("Media preview", "caption"))
         details.addWidget(self.title)
         details.addWidget(self.meta)
         details.addWidget(self.formats)
         layout.addLayout(details, 1)
         thumbnails.loaded.connect(self._loaded)
+        watch_language(self, self.retranslate_ui)
 
     def set_media(self, media: dict) -> None:
+        self.media = media
         self.title.setText(media["title"])
+        self.title.setToolTip(media["title"])
         self.url = media.get("thumbnail", "")
         self.image.setPixmap(icon("video").pixmap(32, 32))
         self._loaded(self.url)
+        self.retranslate_ui()
+
+    def retranslate_ui(self) -> None:
+        media = self.media
+        if media is None:
+            return
         self.meta.setText(
             "  ·  ".join(
                 filter(
@@ -198,4 +209,10 @@ class MediaPreview(QFrame):
         if url == self.url:
             image = self.thumbnails.get(url, (192, 108))
             if not image.isNull():
-                self.image.setPixmap(image)
+                self.image.setPixmap(
+                    image.scaled(
+                        self.image.size(),
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                )

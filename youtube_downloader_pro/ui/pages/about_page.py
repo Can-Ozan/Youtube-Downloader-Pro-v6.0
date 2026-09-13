@@ -1,9 +1,10 @@
-from PySide6.QtCore import QUrl, Signal
+from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QScrollArea, QVBoxLayout, QWidget
 
 from youtube_downloader_pro import APP_NAME, REPOSITORY_URL
 from youtube_downloader_pro.i18n import tr
+from youtube_downloader_pro.ui.localization import watch_language
 from youtube_downloader_pro.ui.widgets.common import Page, button, card, label
 
 
@@ -27,7 +28,7 @@ class AboutPage(Page):
         self.latest = label("Latest yt-dlp version: Not checked", "muted")
         layout.addWidget(self.latest)
         self.check_button = button("Check engine version", self.check_version.emit)
-        layout.addWidget(self.check_button)
+        layout.addWidget(self.check_button, 0, Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(
             label(
                 "Source installations are updated in their virtual environment. "
@@ -36,10 +37,13 @@ class AboutPage(Page):
                 True,
             )
         )
-        layout.addWidget(
+        links = QHBoxLayout()
+        links.addWidget(
             button("GitHub repository", lambda: QDesktopServices.openUrl(QUrl(REPOSITORY_URL)))
         )
-        layout.addWidget(button("Open Logs", self.open_logs.emit))
+        links.addWidget(button("Open Logs", self.open_logs.emit))
+        links.addStretch()
+        layout.addLayout(links)
         body.addWidget(frame)
         body.addWidget(
             label(
@@ -62,6 +66,15 @@ class AboutPage(Page):
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
         self.layout.addWidget(scroll, 1)
+        self.version_values = None
+        watch_language(self, self.retranslate_ui)
 
     def set_versions(self, values: dict) -> None:
-        self.system.setText("\n".join(f"{tr(key)}: {value}" for key, value in values.items()))
+        self.version_values = values
+        self.retranslate_ui()
+
+    def retranslate_ui(self) -> None:
+        if self.version_values is not None:
+            self.system.setText(
+                "\n".join(f"{tr(key)}: {tr(value)}" for key, value in self.version_values.items())
+            )

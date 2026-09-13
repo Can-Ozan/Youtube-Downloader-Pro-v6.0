@@ -14,9 +14,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from youtube_downloader_pro.i18n import tr
 from youtube_downloader_pro.models.settings import Settings
-from youtube_downloader_pro.ui.widgets.common import Page, button, card, combo, label
+from youtube_downloader_pro.ui.localization import bind_text
+from youtube_downloader_pro.ui.widgets.common import (
+    Page,
+    SpinBox,
+    button,
+    card,
+    combo,
+    disclosure,
+    label,
+)
 
 
 class SettingsPage(Page):
@@ -35,6 +43,7 @@ class SettingsPage(Page):
         content = QWidget()
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(16)
         choices = {
             "theme": ["dark", "light", "system"],
             "language": ["tr", "en"],
@@ -87,29 +96,27 @@ class SettingsPage(Page):
             "Download": [
                 "default_format",
                 "default_quality",
-                "audio_format",
-                "audio_bitrate",
                 "parallel_downloads",
                 "speed_limit",
             ],
             "Media": [
+                "audio_format",
                 "subtitle_mode",
+                "embed_metadata",
+                "embed_thumbnail",
+                "download_thumbnail",
+            ],
+            "Advanced": [
+                "audio_bitrate",
                 "subtitle_languages",
                 "manual_subtitles",
                 "automatic_subtitles",
                 "subtitle_format",
-                "embed_metadata",
-                "embed_thumbnail",
-                "download_thumbnail",
                 "preserve_chapters",
-            ],
-            "System": [
                 "notifications",
                 "clipboard_monitoring",
                 "history_enabled",
                 "mini_always_on_top",
-            ],
-            "Advanced": [
                 "filename_template",
                 "fragment_concurrency",
                 "write_description",
@@ -117,18 +124,16 @@ class SettingsPage(Page):
                 "auto_open_folder",
             ],
         }
+        self.sections = {}
         for name, keys in groups.items():
             frame, layout = card()
+            self.sections[name] = frame
             if name == "Advanced":
-                toggle = button("Advanced")
-                toggle.setCheckable(True)
-                toggle.setObjectName("quiet")
-                toggle.toggled.connect(frame.setVisible)
-                content_layout.addWidget(toggle)
-                frame.hide()
+                self.advanced_toggle = disclosure("Advanced", frame)
+                content_layout.addWidget(self.advanced_toggle)
             else:
                 layout.addWidget(label(name, "section"))
-            if name == "System":
+            if name == "Advanced":
                 self.ffmpeg = label("FFmpeg: Checking…", "muted")
                 self.engine_version = label("yt-dlp: Checking…", "muted")
                 layout.addWidget(self.ffmpeg)
@@ -146,7 +151,7 @@ class SettingsPage(Page):
                     control = QCheckBox()
                     control.setChecked(value)
                 elif isinstance(value, int):
-                    control = QSpinBox()
+                    control = SpinBox()
                     control.setRange(
                         0 if key == "speed_limit" else 1,
                         5
@@ -160,7 +165,7 @@ class SettingsPage(Page):
                     control = QLineEdit(", ".join(value) if isinstance(value, tuple) else value)
                 self.controls[key] = control
                 title = label(titles[key], "muted")
-                control.setAccessibleName(tr(titles[key]))
+                bind_text(control, "setAccessibleName", titles[key])
                 if key == "download_folder":
                     row = QHBoxLayout()
                     row.addWidget(control, 1)
@@ -172,7 +177,7 @@ class SettingsPage(Page):
             if name == "General":
                 layout.addWidget(
                     label(
-                        "Language changes take effect after restarting the application.",
+                        "Language changes apply immediately.",
                         "caption",
                         True,
                     )
@@ -213,14 +218,15 @@ class SettingsPage(Page):
         self.layout.addLayout(footer)
 
     def _choose_folder(self) -> None:
-        path = QFileDialog.getExistingDirectory(
-            self,
-            tr("Download folder"),
-            self.controls["download_folder"].text(),
-            options=QFileDialog.Option.DontUseNativeDialog,
-        )
-        if path:
-            self.controls["download_folder"].setText(path)
+        dialog = QFileDialog(self)
+        dialog.setOption(QFileDialog.Option.DontUseNativeDialog)
+        dialog.setFileMode(QFileDialog.FileMode.Directory)
+        dialog.setOption(QFileDialog.Option.ShowDirsOnly)
+        dialog.setDirectory(self.controls["download_folder"].text())
+        bind_text(dialog, "setWindowTitle", "Download folder")
+        if dialog.exec() and dialog.selectedFiles():
+            self.controls["download_folder"].setText(dialog.selectedFiles()[0])
+        dialog.deleteLater()
 
     def _save(self) -> None:
         values = asdict(self.settings)

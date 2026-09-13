@@ -6,11 +6,21 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMenu,
     QTableView,
+    QWidget,
 )
 
 from youtube_downloader_pro.i18n import tr
 from youtube_downloader_pro.models.download_status import DownloadStatus as Status
-from youtube_downloader_pro.ui.widgets.common import EmptyState, Page, button, combo, label
+from youtube_downloader_pro.ui.design import DOWNLOAD_ROW_HEIGHT
+from youtube_downloader_pro.ui.localization import bind_text, watch_language
+from youtube_downloader_pro.ui.widgets.common import (
+    EmptyState,
+    Page,
+    button,
+    combo,
+    disclosure,
+    label,
+)
 from youtube_downloader_pro.ui.widgets.download_card import DownloadTableModel
 from youtube_downloader_pro.ui.widgets.row_delegate import DownloadDelegate
 
@@ -36,8 +46,10 @@ class QueuePage(Page):
         super().__init__("Downloads")
         toolbar = QHBoxLayout()
         self.search = QLineEdit()
-        self.search.setPlaceholderText(tr("Search downloads"))
-        self.filter = combo(["All", *(s.value for s in Status)])
+        bind_text(self.search, "setPlaceholderText", "Search downloads")
+        self.filter = combo([])
+        self.filter.addItem("All statuses", "All")
+        self.filter.addItems([s.value for s in Status])
         toolbar.addWidget(self.search, 1)
         toolbar.addWidget(self.filter)
         more = button("Queue actions", icon_name="more")
@@ -47,7 +59,8 @@ class QueuePage(Page):
             ("Clear Completed", "clear_completed"),
             ("Cancel All", "cancel_all"),
         ):
-            bulk_menu.addAction(tr(text), lambda a=action: self.action.emit(a, ""))
+            item = bulk_menu.addAction(tr(text), lambda a=action: self.action.emit(a, ""))
+            bind_text(item, "setText", text)
         more.setMenu(bulk_menu)
         toolbar.addWidget(more)
         self.layout.addLayout(toolbar)
@@ -61,7 +74,7 @@ class QueuePage(Page):
         self.table.setShowGrid(False)
         self.table.setWordWrap(False)
         self.table.verticalHeader().hide()
-        self.table.verticalHeader().setDefaultSectionSize(112)
+        self.table.verticalHeader().setDefaultSectionSize(DOWNLOAD_ROW_HEIGHT)
         self.table.horizontalHeader().hide()
         self.table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -87,8 +100,19 @@ class QueuePage(Page):
         self.proxy.modelReset.connect(self._empty_state)
         self._empty_state()
         actions = QHBoxLayout()
-        actions.addWidget(button("Cancel", lambda: self._selected_action("cancel")))
-        actions.addWidget(button("Retry", lambda: self._selected_action("retry")))
+        self.context_actions = {}
+        for text, action in (
+            ("Cancel", "cancel"),
+            ("Retry", "retry"),
+            ("Open File", "open_file"),
+            ("Open Folder", "open_folder"),
+        ):
+            control = button(text, lambda _=False, a=action: self._selected_action(a))
+            self.context_actions[action] = control
+            actions.addWidget(control)
+        self.table.selectionModel().selectionChanged.connect(self._update_actions)
+        self.model.dataChanged.connect(self._selected_data_changed)
+        self._update_actions()
         actions.addStretch()
         actions.addWidget(label("More actions: right-click a download", "caption"))
         self.layout.addLayout(actions)
@@ -96,16 +120,21 @@ class QueuePage(Page):
         self.schedule_label = label("Start when you are ready.", "muted")
         self.schedule_label.setWordWrap(True)
         self.layout.addWidget(self.schedule_label)
-        footer.addStretch()
+        self.schedule_controls = QWidget()
+        schedule = QHBoxLayout(self.schedule_controls)
+        schedule.setContentsMargins(0, 0, 0, 0)
         self.time = QLineEdit()
-        self.time.setPlaceholderText(tr("HH:MM"))
+        bind_text(self.time, "setPlaceholderText", "HH:MM")
         self.time.setMaximumWidth(85)
-        footer.addWidget(self.time)
-        footer.addWidget(
+        schedule.addWidget(self.time)
+        schedule.addWidget(
             button("Start at…", lambda: self.schedule_requested.emit(self.time.text()))
         )
-        footer.addWidget(button("Cancel schedule", self.cancel_schedule.emit))
+        schedule.addWidget(button("Cancel schedule", self.cancel_schedule.emit))
+        footer.addWidget(disclosure("Schedule", self.schedule_controls))
+        footer.addStretch()
         footer.addWidget(button("Start now", self.start_requested.emit, True))
+        self.layout.addWidget(self.schedule_controls)
         self.layout.addLayout(footer)
         self.debounce = QTimer(self)
         self.debounce.setSingleShot(True)
@@ -113,6 +142,11 @@ class QueuePage(Page):
         self.debounce.timeout.connect(self._filter)
         self.search.textChanged.connect(lambda: self.debounce.start())
         self.filter.currentTextChanged.connect(self._filter)
+        watch_language(self, self.retranslate_ui)
+
+    def retranslate_ui(self) -> None:
+        self.model.retranslate_ui()
+        self.table.viewport().update()
 
     def _filter(self) -> None:
         self.proxy.beginFilterChange()
@@ -128,7 +162,32 @@ class QueuePage(Page):
 
     def _selected_action(self, action: str) -> None:
         for index in self.table.selectionModel().selectedRows():
-            self.action.emit(action, index.data(Qt.ItemDataRole.UserRole).id)
+            item = index.data(Qt.ItemDataRole.UserRole)
+            if self._action_available(action, item):
+                self.action.emit(action, item.id)
+
+    @staticmethod
+    def _action_available(action, item):
+        if action == "cancel":
+            return not item.status.terminal
+        if action == "retry":
+            return item.status in {Status.FAILED, Status.CANCELLED}
+        return item.status == Status.COMPLETED and bool(item.output_file)
+
+    def _update_actions(self, *_args):
+        items = [
+            idx.data(Qt.ItemDataRole.UserRole) for idx in self.table.selectionModel().selectedRows()
+        ]
+        for action, control in self.context_actions.items():
+            control.setVisible(any(self._action_available(action, item) for item in items))
+
+    def _selected_data_changed(self, first, last, *_args):
+        # Most progress notifications don't affect the selected item; don't rebuild controls.
+        for index in self.table.selectionModel().selectedRows():
+            row = self.proxy.mapToSource(index).row()
+            if first.row() <= row <= last.row():
+                self._update_actions()
+                break
 
     def _menu(self, position) -> None:
         index = self.table.indexAt(position)
@@ -146,5 +205,7 @@ class QueuePage(Page):
             ("Copy Source URL", "copy_url"),
             ("Details", "details"),
         ):
-            menu.addAction(tr(name), lambda a=action: self.action.emit(a, key))
+            item = menu.addAction(tr(name), lambda a=action: self.action.emit(a, key))
+            bind_text(item, "setText", name)
         menu.exec(self.table.viewport().mapToGlobal(position))
+        menu.deleteLater()

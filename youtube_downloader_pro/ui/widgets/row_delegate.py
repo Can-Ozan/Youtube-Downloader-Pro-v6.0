@@ -5,7 +5,13 @@ from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 
 from youtube_downloader_pro.i18n import tr, translate_message
-from youtube_downloader_pro.ui.design import FONT_BODY, FONT_META, RADIUS, tokens
+from youtube_downloader_pro.ui.design import (
+    DOWNLOAD_ROW_HEIGHT,
+    FONT_BODY,
+    FONT_META,
+    RADIUS,
+    tokens,
+)
 from youtube_downloader_pro.ui.icons import icon
 from youtube_downloader_pro.utils.formatting import format_bytes, format_duration
 
@@ -14,7 +20,7 @@ class DownloadDelegate(QStyledItemDelegate):
     overflow = Signal(object)
 
     def sizeHint(self, option, index):
-        return QSize(480, 112)
+        return QSize(480, DOWNLOAD_ROW_HEIGHT)
 
     def editorEvent(self, event, model, option, index):
         if (
@@ -58,7 +64,7 @@ class DownloadDelegate(QStyledItemDelegate):
         painter.setFont(body)
         painter.setPen(QColor(c["text"]))
         painter.drawText(
-            QRect(x, rect.top() + 12, width, 24),
+            QRect(x, rect.top() + 8, width, 24),
             Qt.AlignmentFlag.AlignVCenter,
             painter.fontMetrics().elidedText(item.title, Qt.TextElideMode.ElideRight, width),
         )
@@ -77,11 +83,11 @@ class DownloadDelegate(QStyledItemDelegate):
         )
         text = f"{tr(item.options.quality_label)} · {output} · {status}"
         painter.drawText(
-            QRect(x, rect.top() + 36, width, 20),
+            QRect(x, rect.top() + 32, width, 20),
             Qt.AlignmentFlag.AlignVCenter,
             painter.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, width),
         )
-        bar = QRect(x, rect.top() + 64, width, 4)
+        bar = QRect(x, rect.top() + 56, width, 4)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(c["hover"]))
         painter.drawRoundedRect(bar, 2, 2)
@@ -104,16 +110,16 @@ class DownloadDelegate(QStyledItemDelegate):
         if width < 400:
             text = stats + " · " + size
             painter.drawText(
-                QRect(x, rect.top() + 76, width, 20),
+                QRect(x, rect.top() + 64, width, 20),
                 Qt.AlignmentFlag.AlignVCenter,
                 painter.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, width),
             )
         else:
             painter.drawText(
-                QRect(x, rect.top() + 76, width, 20), Qt.AlignmentFlag.AlignVCenter, size
+                QRect(x, rect.top() + 64, width, 20), Qt.AlignmentFlag.AlignVCenter, size
             )
             painter.drawText(
-                QRect(x, rect.top() + 76, width, 20),
+                QRect(x, rect.top() + 64, width, 20),
                 Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
                 stats,
             )

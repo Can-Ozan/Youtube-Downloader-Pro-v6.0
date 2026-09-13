@@ -78,7 +78,7 @@ def test_system_language(locale, expected):
     assert system_language(locale) == expected
 
 
-def test_language_restart_and_qt_standard_controls(app, tmp_path, settings):
+def test_live_language_persistence_and_qt_standard_controls(app, tmp_path, settings):
     service = SettingsService(tmp_path / "settings.json")
     service.save(replace(settings, language="tr"))
     first = MainWindow(tmp_path)
@@ -91,8 +91,8 @@ def test_language_restart_and_qt_standard_controls(app, tmp_path, settings):
         assert control.itemText(control.currentIndex()) == "Koyu"
         assert QCoreApplication.translate("QLineEdit", "&Undo") != "&Undo"
         first._save_settings(replace(first.settings, language="en"))
+        assert first.home.analyze_button.text() == "Analyze"
         pump(app, lambda: first.settings.language == "en")
-        assert first.home.analyze_button.text() == "Analiz Et"
     finally:
         first.close()
         pump(app, lambda: first.ready_to_close)

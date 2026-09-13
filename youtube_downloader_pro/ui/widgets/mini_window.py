@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 )
 
 from youtube_downloader_pro.i18n import tr
+from youtube_downloader_pro.ui.localization import watch_language
 from youtube_downloader_pro.ui.widgets.common import UrlInput, button, check, label
 
 
@@ -18,7 +19,8 @@ class MiniWindow(QWidget):
 
     def __init__(self, always_on_top: bool) -> None:
         super().__init__()
-        self.setWindowTitle("YouTube Downloader Pro · " + tr("Mini Mode"))
+        self.retranslate_ui()
+        watch_language(self, self.retranslate_ui)
         self.setObjectName("page")
         self.resize(450, 230)
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, always_on_top)
@@ -44,6 +46,9 @@ class MiniWindow(QWidget):
         self.top.setChecked(always_on_top)
         self.top.toggled.connect(self._set_top)
         layout.addWidget(self.top)
+
+    def retranslate_ui(self) -> None:
+        self.setWindowTitle("YouTube Downloader Pro · " + tr("Mini Mode"))
 
     def _set_top(self, value: bool) -> None:
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, value)
